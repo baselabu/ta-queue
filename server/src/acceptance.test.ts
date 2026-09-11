@@ -322,3 +322,46 @@ describe("reconnecting", () => {
     assert.equal(resumed.taCode, undefined, "a plain TA is never handed the TA code");
   });
 });
+
+describe("projector view", () => {
+  test("a watcher sees the live board but holds no staff powers", async () => {
+    const host = await open();
+    const created = await ok<{ studentCode: string }>(host, "room:create", { taName: "Sara" });
+    const code = created.studentCode;
+
+    const student = await open();
+    await ok(student, "student:join", { studentCode: code, name: "Omar", queue: "help" });
+
+    const projector = await open();
+    const initial = await ok<RoomState>(projector, "room:watch", { studentCode: code });
+    assert.equal(initial.help.length, 1, "the watcher gets the current board in the ack");
+    assert.equal("taCode" in initial, false, "the projector board never carries the TA code");
+
+    // A later join reaches the projector as a push, not just on the initial ack.
+    const second = await open();
+    await ok(second, "student:join", { studentCode: code, name: "Nina", queue: "approval" });
+    await waitFor(() => projector.room?.approval.length === 1, "the projector to receive the new student");
+
+    const take = await send(projector, "ta:take", { studentId: initial.help[0]!.id });
+    assert.equal(take.ok, false, "a watcher cannot take a student");
+    const close = await send(projector, "room:close");
+    assert.equal(close.ok, false, "a watcher cannot close the room");
+  });
+
+  test("a watcher is told when the room closes", async () => {
+    const host = await open();
+    const created = await ok<{ studentCode: string }>(host, "room:create", { taName: "Sara" });
+
+    const projector = await open();
+    await ok(projector, "room:watch", { studentCode: created.studentCode });
+    await ok(host, "room:close");
+
+    await waitFor(() => projector.closed !== null, "the projector to see the room close");
+  });
+
+  test("watching a room that does not exist is refused", async () => {
+    const projector = await open();
+    const res = await send(projector, "room:watch", { studentCode: "999999" });
+    assert.equal(res.ok, false);
+  });
+});

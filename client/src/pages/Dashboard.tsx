@@ -128,6 +128,7 @@ export default function Dashboard() {
         studentCode={code}
         taCode={me.taCode}
         onClose={me.isHost ? closeRoom : undefined}
+        onPresent={me.isHost ? () => openProjector(code) : undefined}
       />
 
       <div className="flex-1 mx-auto w-full max-w-[1600px] px-5 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
@@ -162,6 +163,15 @@ export default function Dashboard() {
       </div>
     </Screen>
   );
+}
+
+/**
+ * The projector shows a read-only board, so the host can drag this window to the second
+ * display and keep picking students on the laptop screen. Named, so a second click
+ * refocuses the same window instead of opening another.
+ */
+function openProjector(code: string) {
+  window.open(`/present/${code}`, `ta-queue-projector-${code}`, "width=1280,height=800");
 }
 
 function Counters({ approved, helped }: { approved: number; helped: number }) {

@@ -9,10 +9,13 @@ export function JoinBanner({
   studentCode,
   taCode,
   onClose,
+  onPresent,
 }: {
   studentCode: string;
   taCode?: string;
   onClose?: () => void;
+  /** Host only: opens the read-only board in a window to drag onto the projector. */
+  onPresent?: () => void;
 }) {
   const joinUrl = `${publicUrl.replace(/\/$/, "")}/join/${studentCode}`;
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -91,6 +94,11 @@ export function JoinBanner({
                 {copied === "ta" ? "Copied" : "Copy TA code"}
               </button>
             </div>
+            {onPresent && (
+              <Button variant="secondary" onClick={onPresent}>
+                Open projector view
+              </Button>
+            )}
             {onClose && (
               <Button variant="danger" onClick={() => setConfirming(true)}>
                 Close room

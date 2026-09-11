@@ -4,6 +4,7 @@ import { socket } from "./lib/socket";
 import Landing from "./pages/Landing";
 import JoinStudent from "./pages/JoinStudent";
 import Dashboard from "./pages/Dashboard";
+import Present from "./pages/Present";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/join/:code" element={<JoinStudent />} />
         <Route path="/room/:code" element={<Dashboard />} />
+        <Route path="/present/:code" element={<Present />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

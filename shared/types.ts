@@ -1,6 +1,6 @@
 /** Types shared by client and server. Type-only: erased at runtime, so no build step. */
 
-export type Role = "host" | "ta" | "student";
+export type Role = "host" | "ta" | "student" | "watcher";
 export type QueueType = "approval" | "help";
 export type StudentStatus = "waiting" | "assigned" | "completed";
 
@@ -74,6 +74,8 @@ export type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 export interface ClientToServer {
   "room:create": (p: { taName: string }, ack: (r: Ack<CreateRoomResult>) => void) => void;
   "room:close": (p: Record<string, never>, ack: (r: Ack<null>) => void) => void;
+  /** Read-only subscribe, used by the projector window. Answers with the current state. */
+  "room:watch": (p: { studentCode: string }, ack: (r: Ack<RoomState>) => void) => void;
   "ta:join": (p: { studentCode: string; taCode: string; name: string }, ack: (r: Ack<JoinTAResult>) => void) => void;
   "ta:resume": (p: { studentCode: string; taId: string }, ack: (r: Ack<JoinTAResult>) => void) => void;
   "ta:take": (p: { studentId: string }, ack: (r: Ack<null>) => void) => void;

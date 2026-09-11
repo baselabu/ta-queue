@@ -10,7 +10,7 @@ type TAQueueSocket = Socket<ClientToServer, ServerToClient>;
 /** Who this socket is. Set by the server on join and never taken from the client afterwards. */
 interface Session {
   roomId: string;
-  role: "host" | "ta" | "student";
+  role: "host" | "ta" | "student" | "watcher";
   taId?: string;
   studentId?: string;
 }
@@ -90,7 +90,7 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
 
   const requireStaff = (socket: TAQueueSocket) => {
     const { session, room } = requireRoom(socket);
-    if (session.role === "student") throw new RoomError("Only TAs can do that.");
+    if (session.role !== "host" && session.role !== "ta") throw new RoomError("Only TAs can do that.");
     const ta = session.taId ? room.tas.get(session.taId) : undefined;
     if (!ta) throw new RoomError("Your TA session has ended. Join the room again.");
     return { session, room, ta };
@@ -194,6 +194,17 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
     );
 
     socket.on(
+      "room:watch",
+      handle(socket, "room:watch", ({ studentCode }: { studentCode: string }) => {
+        assertFree(socket);
+        const room = rooms.getByStudentCode(studentCode);
+        // No TA and no ticket: this socket only ever receives the public state.
+        bind(socket, room, { roomId: room.id, role: "watcher" });
+        return { result: roomState(room) };
+      }),
+    );
+
+    socket.on(
       "student:join",
       handle(socket, "student:join", ({ studentCode, name, queue }: { studentCode: string; name: string; queue: "approval" | "help" }) => {
         assertFree(socket);
@@ -239,6 +250,7 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
         return; // room already gone
       }
       if (room.id !== session.roomId) return;
+      if (session.role === "watcher") return;
 
       if (session.role === "student") {
         const student = session.studentId ? room.students.get(session.studentId) : undefined;
