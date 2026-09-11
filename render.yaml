@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ta-queue
+    name: uis-ta-queue
     runtime: node
     plan: free
     buildCommand: npm ci && npm run build
@@ -12,5 +12,5 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: CORS_ORIGIN
-        # Replace with the URL Render gives you, e.g. https://ta-queue.onrender.com
+        # Replace with the URL Render gives you, e.g. https://uis-ta-queue.onrender.com
         sync: false
