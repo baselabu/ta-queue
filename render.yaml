@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ta-queue
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    # Rooms live in one process's memory, so this must never scale past a single instance.
+    numInstances: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: CORS_ORIGIN
+        # Replace with the URL Render gives you, e.g. https://ta-queue.onrender.com
+        sync: false

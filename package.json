@@ -1,0 +1,20 @@
+{
+  "name": "ta-queue",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Real-time assignment approval and help queues for university lab sessions.",
+  "type": "module",
+  "workspaces": ["server", "client"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm:dev -w server\" \"npm:dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "npm test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}

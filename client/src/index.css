@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-ink: #101720;
+  --color-ink-soft: #1c2733;
+  --color-paper: #ffffff;
+  --color-wash: #eff1f5;
+  --color-line: #d6dbe3;
+  --color-muted: #5a6675;
+
+  --color-approval: #0e7c5a;
+  --color-approval-soft: #e3f2ec;
+  --color-help: #c2410c;
+  --color-help-soft: #fbeadf;
+
+  --color-free: #0e7c5a;
+  --color-busy: #b45309;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-wash);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Every number in this app is a ticket, a code or a count. Keep them aligned. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* A ticket stub: solid number block, perforation, then the name. */
+.stub-edge {
+  border-left: 2px dashed currentColor;
+  opacity: 0.35;
+}
