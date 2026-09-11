@@ -30,7 +30,9 @@ export function QueuePanel({
       {students.length === 0 ? (
         <p className="px-6 py-10 text-center text-muted text-lg">Nobody waiting.</p>
       ) : (
-        <ul className="divide-y divide-line">
+        // A full lab is ~40 students, so the list scrolls inside the panel instead of
+        // pushing the TA row off the screen.
+        <ul className="divide-y divide-line max-h-[55vh] overflow-y-auto">
           {students.map((student) => (
             <li key={student.id}>
               <button

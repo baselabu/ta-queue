@@ -133,6 +133,16 @@ export default function Dashboard() {
       <div className="flex-1 mx-auto w-full max-w-[1600px] px-5 sm:px-8 py-6 sm:py-8 flex flex-col gap-6">
         {notice && <ErrorNote>{notice}</ErrorNote>}
 
+        <Counters approved={state?.approvedCount ?? 0} helped={state?.helpedCount ?? 0} />
+
+        <TAPanel tas={state?.tas ?? []} myTaId={me.taId} onComplete={complete} />
+
+        {!canTake && mine?.current && (
+          <p className="text-muted text-lg">
+            Finish with #{mine.current.ticket} {mine.current.name} before taking the next student.
+          </p>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-2">
           <QueuePanel
             queue="approval"
@@ -149,16 +159,6 @@ export default function Dashboard() {
             onTake={take}
           />
         </div>
-
-        {!canTake && mine?.current && (
-          <p className="text-muted text-lg">
-            Finish with #{mine.current.ticket} {mine.current.name} before taking the next student.
-          </p>
-        )}
-
-        <TAPanel tas={state?.tas ?? []} myTaId={me.taId} onComplete={complete} />
-
-        <Counters approved={state?.approvedCount ?? 0} helped={state?.helpedCount ?? 0} />
       </div>
     </Screen>
   );
@@ -166,14 +166,14 @@ export default function Dashboard() {
 
 function Counters({ approved, helped }: { approved: number; helped: number }) {
   return (
-    <section className="grid grid-cols-2 gap-6 rounded-2xl bg-paper border border-line px-6 py-6">
-      <div>
+    <section className="grid grid-cols-2 gap-6 rounded-2xl bg-paper border border-line px-6 py-4">
+      <div className="flex items-baseline gap-3">
+        <p className="num text-4xl font-black tracking-tight leading-none">{approved}</p>
         <p className="text-base font-bold text-approval">Approved</p>
-        <p className="num text-6xl font-black tracking-tight leading-none">{approved}</p>
       </div>
-      <div>
+      <div className="flex items-baseline gap-3">
+        <p className="num text-4xl font-black tracking-tight leading-none">{helped}</p>
         <p className="text-base font-bold text-help">Helped</p>
-        <p className="num text-6xl font-black tracking-tight leading-none">{helped}</p>
       </div>
     </section>
   );
