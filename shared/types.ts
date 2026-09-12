@@ -2,7 +2,7 @@
 
 export type Role = "host" | "ta" | "student" | "watcher";
 export type QueueType = "approval" | "help";
-export type StudentStatus = "waiting" | "assigned" | "completed";
+export type StudentStatus = "waiting" | "assigned" | "completed" | "removed";
 
 /** A queued student, as everyone in the room may see them. */
 export interface StudentView {
@@ -20,7 +20,7 @@ export interface TAView {
   name: string;
   isHost: boolean;
   connected: boolean;
-  current: { name: string; ticket: number; queue: QueueType } | null;
+  current: { id: string; name: string; ticket: number; queue: QueueType } | null;
 }
 
 /** Public room state. Broadcast to every socket in the room — never contains taCode. */
@@ -80,6 +80,10 @@ export interface ClientToServer {
   "ta:resume": (p: { studentCode: string; taId: string }, ack: (r: Ack<JoinTAResult>) => void) => void;
   "ta:take": (p: { studentId: string }, ack: (r: Ack<null>) => void) => void;
   "ta:complete": (p: Record<string, never>, ack: (r: Ack<null>) => void) => void;
+  /** The called student never came: take them out without counting the session. */
+  "ta:remove": (p: { studentId: string }, ack: (r: Ack<null>) => void) => void;
+  /** Hand a taken student back to their queue, keeping their ticket number. */
+  "ta:requeue": (p: { studentId: string }, ack: (r: Ack<null>) => void) => void;
   "student:join": (p: { studentCode: string; name: string; queue: QueueType }, ack: (r: Ack<JoinStudentResult>) => void) => void;
   "student:resume": (p: { studentCode: string; studentId: string }, ack: (r: Ack<JoinStudentResult>) => void) => void;
   "student:leave": (p: Record<string, never>, ack: (r: Ack<null>) => void) => void;

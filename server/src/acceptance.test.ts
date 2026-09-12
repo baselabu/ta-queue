@@ -130,7 +130,12 @@ describe("a full lab session", () => {
 
     await waitFor(() => host.room?.approval.length === 1, "Alice leaving the waiting queue");
     await waitFor(() => ta2.room?.tas[0]?.current?.name === "Alice", "the second TA seeing the same state");
-    assert.deepEqual(ta2.room?.tas[0]?.current, { name: "Alice", ticket: 1, queue: "approval" });
+    assert.deepEqual(ta2.room?.tas[0]?.current, {
+      id: aliceId,
+      name: "Alice",
+      ticket: 1,
+      queue: "approval",
+    });
     await waitFor(() => alice.me?.status === "assigned", "Alice's screen changing");
     assert.equal(alice.me?.taName, "Sara");
 
@@ -288,7 +293,7 @@ describe("reconnecting", () => {
     assert.equal(resumed.taCode, created.taCode);
   });
 
-  test("a TA who drops mid-session releases their student back to the queue", async () => {
+  test("a TA who goes quiet keeps their student until another TA hands them back", async () => {
     const host = await open();
     const created = await ok<{ studentCode: string; taCode: string }>(host, "room:create", { taName: "Sara" });
 
@@ -308,11 +313,20 @@ describe("reconnecting", () => {
     await ok(ta, "ta:take", { studentId: omarId });
     await waitFor(() => host.room?.help.length === 0, "Omar being taken");
 
+    // Jonas shuts his laptop. He must not lose his place or his student.
     ta.socket.disconnect();
+    await waitFor(() => host.room?.tas.some((t) => t.name === "Jonas" && !t.connected) === true, "Jonas showing as away");
+    assert.equal(host.room?.tas.length, 2, "an away TA stays on the board");
+    assert.equal(host.room?.tas.find((t) => t.name === "Jonas")?.current?.name, "Omar");
+    assert.equal(host.room?.help.length, 0, "the student is not yanked away automatically");
+
+    // Sara can hand Omar back, and his original number puts him at the front.
+    await ok(host, "ta:requeue", { studentId: omarId });
     await waitFor(() => host.room?.help.length === 1, "Omar returning to the queue");
     assert.equal(host.room?.help[0]?.ticket, 1, "the original ticket number is kept");
+    assert.equal(host.room?.tas.find((t) => t.name === "Jonas")?.current, null);
 
-    // The TA slot is held briefly, so a reconnect does not lose their place on the board.
+    // Jonas comes back to exactly the seat he left.
     const back = await open();
     const resumed = await ok<{ name: string; taCode?: string }>(back, "ta:resume", {
       studentCode: created.studentCode,
@@ -320,48 +334,56 @@ describe("reconnecting", () => {
     });
     assert.equal(resumed.name, "Jonas");
     assert.equal(resumed.taCode, undefined, "a plain TA is never handed the TA code");
+    await waitFor(() => host.room?.tas.some((t) => t.name === "Jonas" && t.connected) === true, "Jonas back online");
+    assert.equal(host.room?.tas.length, 2, "resuming does not create a second TA");
   });
-});
 
-describe("projector view", () => {
-  test("a watcher sees the live board but holds no staff powers", async () => {
+  test("a student who closes their phone keeps their number, and Remove clears them", async () => {
     const host = await open();
     const created = await ok<{ studentCode: string }>(host, "room:create", { taName: "Sara" });
-    const code = created.studentCode;
 
     const student = await open();
-    await ok(student, "student:join", { studentCode: code, name: "Omar", queue: "help" });
+    const joined = await ok<{ studentId: string; ticket: number }>(student, "student:join", {
+      studentCode: created.studentCode,
+      name: "Omar",
+      queue: "approval",
+    });
+    await waitFor(() => (host.room?.approval.length ?? 0) === 1, "Omar on the board");
 
-    const projector = await open();
-    const initial = await ok<RoomState>(projector, "room:watch", { studentCode: code });
-    assert.equal(initial.help.length, 1, "the watcher gets the current board in the ack");
-    assert.equal("taCode" in initial, false, "the projector board never carries the TA code");
+    // Phone locked, tab closed. Nothing should expire.
+    student.socket.disconnect();
+    await waitFor(() => host.room?.approval[0]?.connected === false, "Omar showing as offline");
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal(host.room?.approval.length, 1, "an offline student keeps their place");
+    assert.equal(host.room?.approval[0]?.ticket, joined.ticket);
 
-    // A later join reaches the projector as a push, not just on the initial ack.
-    const second = await open();
-    await ok(second, "student:join", { studentCode: code, name: "Nina", queue: "approval" });
-    await waitFor(() => projector.room?.approval.length === 1, "the projector to receive the new student");
+    // Called, did not come.
+    await ok(host, "ta:take", { studentId: joined.studentId });
+    await ok(host, "ta:remove", { studentId: joined.studentId });
+    await waitFor(() => host.room?.tas[0]?.current === null, "the TA being free again");
+    assert.equal(host.room?.approval.length, 0);
+    assert.deepEqual([host.room?.approvedCount, host.room?.helpedCount], [0, 0], "removing counts as nothing");
 
-    const take = await send(projector, "ta:take", { studentId: initial.help[0]!.id });
-    assert.equal(take.ok, false, "a watcher cannot take a student");
-    const close = await send(projector, "room:close");
-    assert.equal(close.ok, false, "a watcher cannot close the room");
+    // Reopening the phone tells them what happened rather than showing a dead number.
+    const again = await open();
+    await ok(again, "student:resume", { studentCode: created.studentCode, studentId: joined.studentId });
+    await waitFor(() => again.me?.status === "removed", "the student learning their turn passed");
   });
 
-  test("a watcher is told when the room closes", async () => {
+  test("students cannot remove or hand somebody back", async () => {
     const host = await open();
     const created = await ok<{ studentCode: string }>(host, "room:create", { taName: "Sara" });
 
-    const projector = await open();
-    await ok(projector, "room:watch", { studentCode: created.studentCode });
-    await ok(host, "room:close");
+    const student = await open();
+    const joined = await ok<{ studentId: string }>(student, "student:join", {
+      studentCode: created.studentCode,
+      name: "Omar",
+      queue: "help",
+    });
 
-    await waitFor(() => projector.closed !== null, "the projector to see the room close");
-  });
-
-  test("watching a room that does not exist is refused", async () => {
-    const projector = await open();
-    const res = await send(projector, "room:watch", { studentCode: "999999" });
-    assert.equal(res.ok, false);
+    for (const event of ["ta:remove", "ta:requeue"] as const) {
+      const res = await send(student, event, { studentId: joined.studentId });
+      assert.equal(res.ok, false, `${event} must be refused for students`);
+    }
   });
 });

@@ -84,7 +84,12 @@ describe("taking a student", () => {
     assert.equal(alice.status, "assigned");
     assert.equal(host.currentStudentId, alice.id);
     assert.deepEqual(tickets(room, "approval"), []);
-    assert.deepEqual(roomState(room).tas[0]?.current, { name: "Alice", ticket: 1, queue: "approval" });
+    assert.deepEqual(roomState(room).tas[0]?.current, {
+      id: alice.id,
+      name: "Alice",
+      ticket: 1,
+      queue: "approval",
+    });
   });
 
   test("only one of two TAs racing for the same student wins", () => {
@@ -143,10 +148,8 @@ describe("completing", () => {
   });
 });
 
-describe("disconnects", () => {
-  test("a TA dropping out returns their student to the queue", () => {
-    assert.equal(config.onTADisconnect, "requeue", "test assumes the default policy");
-
+describe("presence is never enforced", () => {
+  test("a TA who goes offline keeps their place and their student", () => {
     const rooms = new RoomManager();
     const { room, host } = rooms.createRoom("Sara");
     rooms.attachTA(room, host, "socket-1");
@@ -155,14 +158,13 @@ describe("disconnects", () => {
 
     rooms.detachTA(room, host);
 
-    assert.equal(alice.status, "waiting");
-    assert.equal(alice.taId, null);
-    assert.equal(host.currentStudentId, null);
-    // Their original number still sorts them to the front.
-    assert.deepEqual(tickets(room, "approval"), [1]);
+    assert.equal(room.tas.has(host.id), true, "a TA is not removed for being away");
+    assert.equal(host.currentStudentId, alice.id, "their student stays with them");
+    assert.equal(alice.status, "assigned");
+    assert.equal(roomState(room).tas[0]?.connected, false, "but the board shows them away");
   });
 
-  test("a student keeps their place until the grace period expires", () => {
+  test("a waiting student who closes their phone keeps their number", () => {
     const rooms = new RoomManager();
     const { room } = rooms.createRoom("Host");
     const alice = rooms.joinQueue(room, "Alice", "approval");
@@ -171,11 +173,12 @@ describe("disconnects", () => {
     rooms.detachStudent(room, alice);
 
     assert.equal(room.students.has(alice.id), true);
-    assert.notEqual(alice.graceTimer, null);
-    rooms.removeStudent(room, alice); // stop the timer so the test process can exit
+    assert.equal(alice.expiryTimer, null, "no countdown is started");
+    assert.deepEqual(tickets(room, "approval"), [1]);
+    assert.equal(roomState(room).approval[0]?.connected, false);
   });
 
-  test("reconnecting cancels the grace timer", () => {
+  test("reopening the page puts them back online without changing their place", () => {
     const rooms = new RoomManager();
     const { room } = rooms.createRoom("Host");
     const alice = rooms.joinQueue(room, "Alice", "approval");
@@ -184,8 +187,61 @@ describe("disconnects", () => {
 
     rooms.attachStudent(room, alice, "socket-b");
 
-    assert.equal(alice.graceTimer, null);
     assert.equal(alice.socketId, "socket-b");
+    assert.equal(alice.ticket, 1);
+  });
+});
+
+describe("removing a student", () => {
+  test("a called student who never came is dropped without counting a session", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Sara");
+    const alice = rooms.joinQueue(room, "Alice", "approval");
+    rooms.take(room, host, alice.id);
+
+    rooms.removeStudent(room, alice.id);
+
+    assert.equal(alice.status, "removed");
+    assert.equal(host.currentStudentId, null, "the TA is free again");
+    assert.deepEqual([room.approvedCount, room.helpedCount], [0, 0]);
+    assert.deepEqual(tickets(room, "approval"), [], "and they are off the board");
+  });
+
+  test("a removed number is not handed out again", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Sara");
+    const alice = rooms.joinQueue(room, "Alice", "approval");
+    rooms.take(room, host, alice.id);
+    rooms.removeStudent(room, alice.id);
+
+    assert.equal(rooms.joinQueue(room, "Bob", "approval").ticket, 2);
+  });
+
+  test("any TA can hand back a student whose own TA went away", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Sara");
+    const jonas = rooms.joinTA(room, room.taCode, "Jonas");
+    const alice = rooms.joinQueue(room, "Alice", "approval");
+    rooms.take(room, jonas, alice.id);
+    rooms.detachTA(room, jonas);
+
+    rooms.requeue(room, alice.id);
+
+    assert.equal(alice.status, "waiting");
+    assert.equal(alice.taId, null);
+    assert.equal(jonas.currentStudentId, null);
+    // Their original number still sorts them to the front.
+    assert.deepEqual(tickets(room, "approval"), [1]);
+    assert.equal(host.currentStudentId, null);
+  });
+
+  test("handing back somebody who is not with a TA fails", () => {
+    const rooms = new RoomManager();
+    const { room } = rooms.createRoom("Sara");
+    const alice = rooms.joinQueue(room, "Alice", "approval");
+
+    assert.throws(() => rooms.requeue(room, alice.id), /not with a TA/);
+    assert.throws(() => rooms.removeStudent(room, "nobody"), /no longer in this room/);
   });
 });
 
@@ -201,7 +257,7 @@ describe("room lifecycle", () => {
     assert.throws(() => rooms.getByStudentCode(code), RoomError);
   });
 
-  test("the sweeper clears rooms nobody has been connected to", () => {
+  test("the sweeper clears rooms that are unattended and empty", () => {
     const rooms = new RoomManager();
     const { room } = rooms.createRoom("Host");
     room.emptySince = Date.now() - config.emptyRoomTtlMs - 1;
@@ -209,6 +265,22 @@ describe("room lifecycle", () => {
     rooms.sweep();
 
     assert.equal(rooms.size, 0);
+  });
+
+  test("a room with people still queued is never swept as empty", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Host");
+    rooms.attachTA(room, host, "socket-1");
+    const alice = rooms.joinQueue(room, "Alice", "approval");
+    rooms.attachStudent(room, alice, "socket-a");
+
+    // Everyone puts their laptop to sleep and their phone away.
+    rooms.detachTA(room, host);
+    rooms.detachStudent(room, alice);
+
+    assert.equal(room.emptySince, null, "a queued student keeps the room alive");
+    rooms.sweep(Date.now() + config.emptyRoomTtlMs + 1);
+    assert.equal(rooms.size, 1);
   });
 
   test("the sweeper enforces a maximum room lifetime", () => {

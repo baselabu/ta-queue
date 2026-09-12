@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { JoinStudentResult, QueueType, StudentState } from "@shared/types";
 import { call, message, resetSocket, socket } from "../lib/socket";
+import { useReattach } from "../lib/useReattach";
 import { lastName, studentSession } from "../lib/session";
 import { Button, ErrorNote, Field, Screen } from "../components/ui";
 
@@ -16,26 +17,19 @@ export default function JoinStudent() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [closedReason, setClosedReason] = useState("");
-  const resumed = useRef(false);
 
-  // Resume an existing ticket if this tab already has one; otherwise show the form.
-  useEffect(() => {
-    if (resumed.current) return;
-    resumed.current = true;
-
-    (async () => {
-      const saved = studentSession.get(code);
-      await resetSocket();
-      if (!saved) return setPhase("form");
-      try {
-        await call<JoinStudentResult>("student:resume", { studentCode: code, studentId: saved.studentId });
-        setPhase("queued");
-      } catch {
-        studentSession.clear();
-        setPhase("form");
-      }
-    })();
-  }, [code]);
+  // Runs again on every reconnect, so reopening the phone shows the live ticket.
+  useReattach(async () => {
+    const saved = studentSession.get(code);
+    if (!saved) return setPhase("form");
+    try {
+      await call<JoinStudentResult>("student:resume", { studentCode: code, studentId: saved.studentId });
+      setPhase("queued");
+    } catch {
+      studentSession.clear();
+      setPhase("form");
+    }
+  });
 
   useEffect(() => {
     const onMe = (state: StudentState) => setMe(state);
@@ -170,6 +164,25 @@ export default function JoinStudent() {
 function Ticket({ me, onLeave }: { me: StudentState; onLeave: () => void }) {
   const accent = me.queue === "approval" ? "bg-approval" : "bg-help";
 
+  if (me.status === "removed") {
+    return (
+      <Screen>
+        <div className="flex-1 grid place-items-center px-5 text-center">
+          <div>
+            <p className="num text-2xl font-bold text-muted">#{me.ticket}</p>
+            <h1 className="mt-2 text-5xl sm:text-6xl font-black tracking-tight">Your turn passed</h1>
+            <p className="mt-3 text-lg text-muted max-w-sm mx-auto">
+              A TA called your number and nobody came. Take a new number whenever you are ready.
+            </p>
+            <Button className="mt-8" onClick={onLeave}>
+              Take a new number
+            </Button>
+          </div>
+        </div>
+      </Screen>
+    );
+  }
+
   if (me.status === "completed") {
     return (
       <Screen>
@@ -230,7 +243,9 @@ function Ticket({ me, onLeave }: { me: StudentState; onLeave: () => void }) {
                   ? "1 student is ahead of you."
                   : `${me.ahead} students are ahead of you.`}
             </p>
-            <p className="mt-2 text-lg text-muted">Keep this page open until a TA calls you.</p>
+            <p className="mt-2 text-lg text-muted max-w-sm mx-auto">
+              You can close this page and keep working. A TA will call your name out loud.
+            </p>
           </div>
         </div>
 

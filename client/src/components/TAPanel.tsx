@@ -5,10 +5,14 @@ export function TAPanel({
   tas,
   myTaId,
   onComplete,
+  onRemove,
+  onRequeue,
 }: {
   tas: TAView[];
   myTaId: string;
   onComplete: () => void;
+  onRemove: (studentId: string) => void;
+  onRequeue: (studentId: string) => void;
 }) {
   return (
     <section className="rounded-2xl bg-paper border border-line overflow-hidden">
@@ -28,7 +32,7 @@ export function TAPanel({
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold truncate">{ta.name}</span>
                 {mine && <span className="text-sm font-semibold text-muted">you</span>}
-                {!ta.connected && <span className="text-sm font-semibold text-muted">offline</span>}
+                {!ta.connected && <span className="text-sm font-semibold text-muted">away</span>}
               </div>
 
               {ta.current ? (
@@ -40,10 +44,28 @@ export function TAPanel({
                   <p className={`text-base font-bold ${queueColor}`}>
                     {ta.current.queue === "approval" ? "Approval" : "Help"}
                   </p>
-                  {mine && (
-                    <Button className="mt-4 w-full" onClick={onComplete}>
-                      Complete
-                    </Button>
+
+                  {mine ? (
+                    <div className="mt-4 flex flex-col gap-2">
+                      <Button className="w-full" onClick={onComplete}>
+                        Complete
+                      </Button>
+                      {/* Called their name, nobody came. Takes them out, counting nothing. */}
+                      <Button variant="secondary" className="w-full" onClick={() => onRemove(ta.current!.id)}>
+                        Remove
+                      </Button>
+                    </div>
+                  ) : (
+                    /* Their TA walked off holding them: any TA can put them back in line. */
+                    !ta.connected && (
+                      <Button
+                        variant="secondary"
+                        className="mt-4 w-full"
+                        onClick={() => onRequeue(ta.current!.id)}
+                      >
+                        Return to queue
+                      </Button>
+                    )
                   )}
                 </>
               ) : (

@@ -49,8 +49,8 @@ Everything runs in one Node process on `PORT` (default 3001). Open
    are never reused, even when someone leaves.
 4. Any TA can click any waiting student in either queue. The server decides who gets them;
    the second TA to click sees "already taken".
-5. The TA clicks **Complete**, which adds to either the Approved or the Helped count and
-   frees the TA.
+5. The TA calls the name out loud, then clicks **Complete** — which adds to either the
+   Approved or the Helped count — or **Remove** if nobody comes.
 6. The host clicks **Close room**. Everyone is told, and the room is deleted.
 
 ---
@@ -63,16 +63,16 @@ ta-queue/
 ├── server/
 │   └── src/
 │       ├── index.ts       express + socket.io bootstrap, health check, SPA hosting
-│       ├── config.ts      every tunable: grace periods, TTLs, rate limits
+│       ├── config.ts      every tunable: room TTLs, rate limits
 │       ├── codes.ts       cryptographically random room codes
 │       ├── roomManager.ts all room state and all the rules that change it
 │       ├── views.ts       what each audience is allowed to see
 │       └── socket.ts      event handlers, roles, validation, broadcasting
 └── client/
     └── src/
-        ├── pages/         Landing, JoinStudent, Dashboard
+        ├── pages/         Landing, JoinStudent, Dashboard, Present
         ├── components/    JoinBanner, QueuePanel, TAPanel, ui primitives
-        └── lib/           socket wrapper, per-tab session
+        └── lib/           socket wrapper, saved identity, reconnect handling
 ```
 
 `shared/types.ts` is type-only, so it is erased at compile time and needs no build step of
@@ -107,6 +107,8 @@ It is not part of the broadcast room state, so no student client ever receives i
 | `ta:resume`       | the same, after a refresh                 |
 | `ta:take`         | ok, or why not                            |
 | `ta:complete`     | ok, or why not                            |
+| `ta:remove`       | ok, or why not                            |
+| `ta:requeue`      | ok, or why not                            |
 | `room:close`      | ok (host only)                            |
 | `student:join`    | your ticket number                        |
 | `student:resume`  | the same, after a refresh                 |
@@ -123,35 +125,37 @@ sentence meant to be shown to the person. Stack traces stay on the server.
 
 ---
 
-## Disconnects
+## Being offline is normal
 
-Campus wifi drops, and a page refresh looks exactly like a disconnect, so nobody loses
-their place immediately.
+A lab session runs for two to four hours. TAs sit in the room working on their own things
+between students, and students are told to take a number and put their phone away. So
+presence is shown on the board and never acted on.
 
-| Who                    | What happens                                                                                   |
-| ---------------------- | ---------------------------------------------------------------------------------------------- |
-| Waiting student drops  | Held for `STUDENT_GRACE_MS` (45s), then removed from the queue. Reconnecting cancels the timer. |
-| TA drops while helping | Their student is released **at once**; the TA slot is held for `TA_GRACE_MS` (90s).            |
+| Who                       | What happens                                                                |
+| ------------------------- | --------------------------------------------------------------------------- |
+| Student closes their phone | Nothing. They keep their number until they leave or a TA calls them.        |
+| TA switches tabs, sleeps   | Nothing. They keep their place on the board and the student they are with.  |
 
-What happens to that released student is set by `ON_TA_DISCONNECT`:
+The board marks them offline or `away` so other TAs can see it, and that is all it does.
 
-- `requeue` (default) — back into their original queue. Their original ticket number still
-  sorts them near the front, so they are seen next rather than sent to the back.
-- `complete` — the session is counted as finished instead.
+**Reconnecting is the load-bearing part.** The server identifies a person by their socket,
+and an automatic reconnect is a brand new socket — so every page re-announces itself on
+each `connect`, not just the first (`client/src/lib/useReattach.ts`). Without that, a tab
+that had been asleep looks connected while the server no longer knows who it belongs to:
+the board goes stale and every click is refused. Identity lives in `localStorage`, not
+`sessionStorage`, so it survives the tab being closed entirely.
 
-A tab that refreshes reconnects with the id it saved in `sessionStorage` and picks up
-exactly where it was, ticket number included.
+### Clearing people out
 
-## Room cleanup
+Since nothing expires on its own, TAs have the controls instead:
 
-- Host closes the room → deleted immediately.
-- Nobody connected for `EMPTY_ROOM_TTL_MS` (15 min) → deleted.
-- Older than `MAX_ROOM_LIFETIME_MS` (12 h) → deleted.
-
-A sweeper runs once a minute. Deleting a room clears its timers and drops every reference,
-so nothing survives it.
-
----
+- **Complete** — the session is done; adds to Approved or Helped.
+- **Remove** — the name was called and nobody came. The student is taken out and nothing is
+  counted. Their phone, if they open it, says their turn passed and offers a new number.
+  Their old ticket number is retired, never reissued.
+- **Return to queue** — appears on the card of a TA who has gone away while still holding a
+  student. Any TA can put that student back in line; their original number keeps them at
+  the front.
 
 ## Configuration
 
@@ -162,8 +166,9 @@ cp server/.env.example server/.env
 cp client/.env.example client/.env
 ```
 
-**Server** (`server/.env`) — `PORT`, `CORS_ORIGIN`, the grace periods and TTLs above,
-`ON_TA_DISCONNECT`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`.
+**Server** (`server/.env`) — `PORT`, `CORS_ORIGIN`, `RESULT_LINGER_MS` (how long a
+finished or removed student can still read their result), `EMPTY_ROOM_TTL_MS`,
+`MAX_ROOM_LIFETIME_MS`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`.
 
 **Client** (`client/.env`) — build-time, so rebuild after changing:
 
@@ -217,16 +222,17 @@ Requirements for the host or reverse proxy:
 ## Tests
 
 ```bash
-npm test         # 32 tests: unit + full socket-level acceptance run
+npm test         # 39 tests: unit + full socket-level acceptance run
 npm run typecheck
 ```
 
 `roomManager.test.ts` covers the rules directly: code generation, the shared ticket
-counter, numbers never being reused after someone leaves, take/complete, the TA-disconnect
-policy, cleanup, and that the broadcast state never contains the TA code.
+counter, numbers never being reused after someone leaves, take/complete, removals and
+hand-backs, that nobody is ever removed for being offline, cleanup, and that the broadcast
+state never contains the TA code.
 
 `acceptance.test.ts` runs the full session scenario against a real Socket.IO server with
 real client sockets — four students across both queues, two TAs seeing identical state,
-simultaneous clicks on the same student, a student refreshing mid-queue, and the host
-closing the room — plus the permission checks: students cannot take, complete or close;
+simultaneous clicks on the same student, a TA going quiet and resuming into the same seat,
+a student closing their phone and then being removed, and the host closing the room — plus the permission checks: students cannot take, complete or close;
 a non-host TA cannot close; a wrong TA code is refused.

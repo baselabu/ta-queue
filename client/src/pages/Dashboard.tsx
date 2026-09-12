@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { JoinTAResult, RoomState } from "@shared/types";
 import { call, message, resetSocket, socket } from "../lib/socket";
+import { useReattach } from "../lib/useReattach";
 import { lastName, taSession } from "../lib/session";
 import { Button, ErrorNote, Field, Screen } from "../components/ui";
 import { JoinBanner } from "../components/JoinBanner";
@@ -18,31 +19,25 @@ export default function Dashboard() {
   const [state, setState] = useState<RoomState | null>(null);
   const [closedReason, setClosedReason] = useState("");
   const [notice, setNotice] = useState("");
-  const resumed = useRef(false);
 
   const flash = useCallback((text: string) => {
     setNotice(text);
     window.setTimeout(() => setNotice((current) => (current === text ? "" : current)), 4000);
   }, []);
 
-  useEffect(() => {
-    if (resumed.current) return;
-    resumed.current = true;
-
-    (async () => {
-      const saved = taSession.get(code);
-      await resetSocket();
-      if (!saved) return setPhase("join");
-      try {
-        const result = await call<JoinTAResult>("ta:resume", { studentCode: code, taId: saved.taId });
-        setMe(result);
-        setPhase("ready");
-      } catch {
-        taSession.clear();
-        setPhase("join");
-      }
-    })();
-  }, [code]);
+  // Runs again on every reconnect, so a sleeping laptop wakes straight back into the board.
+  useReattach(async () => {
+    const saved = taSession.get(code);
+    if (!saved) return setPhase("join");
+    try {
+      const result = await call<JoinTAResult>("ta:resume", { studentCode: code, taId: saved.taId });
+      setMe(result);
+      setPhase("ready");
+    } catch {
+      taSession.clear();
+      setPhase("join");
+    }
+  });
 
   useEffect(() => {
     const onState = (next: RoomState) => setState(next);
@@ -70,6 +65,22 @@ export default function Dashboard() {
   const complete = async () => {
     try {
       await call("ta:complete");
+    } catch (err) {
+      flash(message(err));
+    }
+  };
+
+  const removeStudent = async (studentId: string) => {
+    try {
+      await call("ta:remove", { studentId });
+    } catch (err) {
+      flash(message(err));
+    }
+  };
+
+  const requeue = async (studentId: string) => {
+    try {
+      await call("ta:requeue", { studentId });
     } catch (err) {
       flash(message(err));
     }
@@ -136,7 +147,13 @@ export default function Dashboard() {
 
         <Counters approved={state?.approvedCount ?? 0} helped={state?.helpedCount ?? 0} />
 
-        <TAPanel tas={state?.tas ?? []} myTaId={me.taId} onComplete={complete} />
+        <TAPanel
+          tas={state?.tas ?? []}
+          myTaId={me.taId}
+          onComplete={complete}
+          onRemove={removeStudent}
+          onRequeue={requeue}
+        />
 
         {!canTake && mine?.current && (
           <p className="text-muted text-lg">

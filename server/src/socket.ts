@@ -109,6 +109,8 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
   };
 
   const bind = (socket: TAQueueSocket, room: Room, session: Session) => {
+    const previous = sessions.get(socket);
+    if (previous && previous.roomId !== room.id) socket.leave(previous.roomId);
     sessions.set(socket, session);
     sessionCode.set(socket, room.studentCode);
     socket.join(room.id);
@@ -144,8 +146,7 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
     socket.on(
       "ta:resume",
       handle(socket, "ta:resume", ({ studentCode, taId }: { studentCode: string; taId: string }) => {
-        assertFree(socket);
-        const room = rooms.getByStudentCode(studentCode);
+                const room = rooms.getByStudentCode(studentCode);
         const ta = rooms.resumeTA(room, taId);
         bind(socket, room, { roomId: room.id, role: ta.isHost ? "host" : "ta", taId: ta.id });
         rooms.attachTA(room, ta, socket.id);
@@ -182,6 +183,24 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
     );
 
     socket.on(
+      "ta:remove",
+      handle(socket, "ta:remove", ({ studentId }: { studentId: string }) => {
+        const { room } = requireStaff(socket);
+        rooms.removeStudent(room, studentId);
+        return { result: null, room };
+      }),
+    );
+
+    socket.on(
+      "ta:requeue",
+      handle(socket, "ta:requeue", ({ studentId }: { studentId: string }) => {
+        const { room } = requireStaff(socket);
+        rooms.requeue(room, studentId);
+        return { result: null, room };
+      }),
+    );
+
+    socket.on(
       "room:close",
       handle(socket, "room:close", () => {
         const { session, room } = requireRoom(socket);
@@ -196,8 +215,7 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
     socket.on(
       "room:watch",
       handle(socket, "room:watch", ({ studentCode }: { studentCode: string }) => {
-        assertFree(socket);
-        const room = rooms.getByStudentCode(studentCode);
+                const room = rooms.getByStudentCode(studentCode);
         // No TA and no ticket: this socket only ever receives the public state.
         bind(socket, room, { roomId: room.id, role: "watcher" });
         return { result: roomState(room) };
@@ -219,8 +237,7 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
     socket.on(
       "student:resume",
       handle(socket, "student:resume", ({ studentCode, studentId }: { studentCode: string; studentId: string }) => {
-        assertFree(socket);
-        const room = rooms.getByStudentCode(studentCode);
+                const room = rooms.getByStudentCode(studentCode);
         const student = rooms.resumeStudent(room, studentId);
         bind(socket, room, { roomId: room.id, role: "student", studentId: student.id });
         rooms.attachStudent(room, student, socket.id);

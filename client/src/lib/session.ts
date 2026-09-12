@@ -1,6 +1,11 @@
 /**
- * Per-tab identity, so a refresh keeps your place. Nothing here is a secret the server
- * trusts on its own: the ids are unguessable and the server still checks every action.
+ * Who this browser is, so closing the tab or locking the phone does not cost you your
+ * place - students are told to do exactly that after taking a number, and a TA session
+ * has to survive a laptop being shut for an hour.
+ *
+ * localStorage rather than sessionStorage for that reason: sessionStorage dies with the
+ * tab. Nothing here is a secret the server trusts on its own - the ids are unguessable and
+ * the server still checks every action against the role it assigned.
  */
 
 export interface TASession {
@@ -17,7 +22,7 @@ export interface StudentSession {
 
 const read = <T>(key: string): T | null => {
   try {
-    const raw = sessionStorage.getItem(key);
+    const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -26,15 +31,15 @@ const read = <T>(key: string): T | null => {
 
 const write = (key: string, value: unknown) => {
   try {
-    sessionStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* private browsing: the session simply will not survive a refresh */
+    /* private browsing: the session simply will not survive a reload */
   }
 };
 
 const clear = (key: string) => {
   try {
-    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
   } catch {
     /* ignore */
   }

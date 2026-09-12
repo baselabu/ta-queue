@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { QueueType, RoomState, StudentView, TAView } from "@shared/types";
-import { call, resetSocket, socket } from "../lib/socket";
+import { call, socket } from "../lib/socket";
+import { useReattach } from "../lib/useReattach";
 import { JoinBanner } from "../components/JoinBanner";
 import { Screen } from "../components/ui";
 
@@ -16,21 +17,16 @@ export default function Present() {
   const [state, setState] = useState<RoomState | null>(null);
   const [closed, setClosed] = useState("");
   const [error, setError] = useState("");
-  const started = useRef(false);
 
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
-    (async () => {
-      await resetSocket();
-      try {
-        setState(await call<RoomState>("room:watch", { studentCode: code }));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not open this room.");
-      }
-    })();
-  }, [code]);
+  // Re-subscribes on every reconnect: a projector runs untouched for hours.
+  useReattach(async () => {
+    try {
+      setState(await call<RoomState>("room:watch", { studentCode: code }));
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open this room.");
+    }
+  });
 
   useEffect(() => {
     const onState = (next: RoomState) => setState(next);

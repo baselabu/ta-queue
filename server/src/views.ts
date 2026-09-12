@@ -26,7 +26,9 @@ export function roomState(room: Room): RoomState {
       name: ta.name,
       isHost: ta.isHost,
       connected: ta.socketId !== null,
-      current: current ? { name: current.name, ticket: current.ticket, queue: current.queue } : null,
+      current: current
+        ? { id: current.id, name: current.name, ticket: current.ticket, queue: current.queue }
+        : null,
     };
   });
   // Host first, then arrival order, so the board does not reshuffle as TAs get busy.
