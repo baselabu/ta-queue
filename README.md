@@ -138,12 +138,18 @@ presence is shown on the board and never acted on.
 
 The board marks them offline or `away` so other TAs can see it, and that is all it does.
 
+Presence is the union of a person's live sockets, not their newest one. A second tab
+closing must never make somebody who is still working look absent — if it did, another TA
+would be offered **Return to queue** on a student who is sitting right there.
+
 **Reconnecting is the load-bearing part.** The server identifies a person by their socket,
 and an automatic reconnect is a brand new socket — so every page re-announces itself on
 each `connect`, not just the first (`client/src/lib/useReattach.ts`). Without that, a tab
 that had been asleep looks connected while the server no longer knows who it belongs to:
 the board goes stale and every click is refused. Identity lives in `localStorage`, not
-`sessionStorage`, so it survives the tab being closed entirely.
+`sessionStorage`, so it survives the tab being closed entirely — which also means one
+browser holds one TA session, and a second tab on the dashboard is the same TA. **Switch
+TA** on the dashboard clears it when two people really do share a machine.
 
 ### Clearing people out
 
@@ -222,7 +228,7 @@ Requirements for the host or reverse proxy:
 ## Tests
 
 ```bash
-npm test         # 39 tests: unit + full socket-level acceptance run
+npm test         # 41 tests: unit + full socket-level acceptance run
 npm run typecheck
 ```
 

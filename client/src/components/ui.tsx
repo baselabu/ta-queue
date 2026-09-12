@@ -15,7 +15,9 @@ const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
 export function Button({ variant = "primary", size = "md", className = "", ...props }: ButtonProps) {
   const sizing = size === "lg" ? "px-7 py-4 text-lg" : "px-5 py-3 text-base";
   const base = variant === "quiet" ? "" : `${sizing} rounded-lg font-semibold transition-colors`;
-  return <button {...props} className={`${base} ${VARIANTS[variant]} ${className}`} />;
+  // Default to "button": inside a form an untyped button submits, which silently runs the
+  // form's action instead of its own onClick. Pass type="submit" where that is the intent.
+  return <button type="button" {...props} className={`${base} ${VARIANTS[variant]} ${className}`} />;
 }
 
 export function Field({

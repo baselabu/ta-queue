@@ -9,7 +9,7 @@ const toStudentView = (s: Student): StudentView => ({
   ticket: s.ticket,
   queue: s.queue,
   status: s.status,
-  connected: s.socketId !== null,
+  connected: s.sockets.size > 0,
 });
 
 /**
@@ -25,7 +25,7 @@ export function roomState(room: Room): RoomState {
       id: ta.id,
       name: ta.name,
       isHost: ta.isHost,
-      connected: ta.socketId !== null,
+      connected: ta.sockets.size > 0,
       current: current
         ? { id: current.id, name: current.name, ticket: current.ticket, queue: current.queue }
         : null,

@@ -338,6 +338,35 @@ describe("reconnecting", () => {
     assert.equal(host.room?.tas.length, 2, "resuming does not create a second TA");
   });
 
+  test("a stray second tab cannot make a working TA look away", async () => {
+    const host = await open();
+    const created = await ok<{ studentCode: string; taCode: string; taId: string }>(host, "room:create", {
+      taName: "Sara",
+    });
+
+    const ta2 = await open();
+    await ok(ta2, "ta:join", { studentCode: created.studentCode, taCode: created.taCode, name: "Jonas" });
+
+    const stu = await open();
+    const omar = await ok<{ studentId: string }>(stu, "student:join", {
+      studentCode: created.studentCode,
+      name: "Omar",
+      queue: "help",
+    });
+    await ok(host, "ta:take", { studentId: omar.studentId });
+    await waitFor(() => ta2.room?.tas[0]?.current?.name === "Omar", "Sara taking Omar");
+
+    // A second tab in Sara's browser shares her stored session and resumes as her, then closes.
+    const strayTab = await open();
+    await ok(strayTab, "ta:resume", { studentCode: created.studentCode, taId: created.taId });
+    strayTab.socket.disconnect();
+    await new Promise((r) => setTimeout(r, 400));
+
+    const sara = ta2.room?.tas.find((t) => t.name === "Sara");
+    assert.equal(sara?.connected, true, "Sara's own tab is still open");
+    assert.equal(sara?.current?.name, "Omar", "and she still has her student");
+  });
+
   test("a student who closes their phone keeps their number, and Remove clears them", async () => {
     const host = await open();
     const created = await ok<{ studentCode: string }>(host, "room:create", { taName: "Sara" });

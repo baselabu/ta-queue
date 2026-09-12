@@ -86,6 +86,15 @@ export default function Dashboard() {
     }
   };
 
+  /**
+   * One browser stores one TA session, so a second tab here is the same TA - right for a
+   * laptop plus a second screen, wrong when two TAs share a machine. This is the way out.
+   */
+  const switchTA = async () => {
+    taSession.clear();
+    await resetSocket(); // reconnecting with no stored session drops us at the join form
+  };
+
   const closeRoom = async () => {
     try {
       await call("room:close");
@@ -146,6 +155,13 @@ export default function Dashboard() {
         {notice && <ErrorNote>{notice}</ErrorNote>}
 
         <Counters approved={state?.approvedCount ?? 0} helped={state?.helpedCount ?? 0} />
+
+        <p className="text-sm text-muted">
+          Working as {me.name}.{" "}
+          <Button variant="quiet" onClick={switchTA}>
+            Switch TA
+          </Button>
+        </p>
 
         <TAPanel
           tas={state?.tas ?? []}

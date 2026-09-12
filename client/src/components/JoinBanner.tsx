@@ -56,7 +56,7 @@ export function JoinBanner({
           <p className="num font-black leading-[0.85] tracking-[0.02em] text-[clamp(4rem,13vw,9rem)]">
             {studentCode}
           </p>
-          <button
+          <button type="button"
             onClick={() => copy(studentCode, "code")}
             className="mt-2 text-paper/70 hover:text-paper underline underline-offset-4 text-sm font-semibold"
           >
@@ -80,14 +80,14 @@ export function JoinBanner({
               <p className="num text-3xl font-bold tracking-[0.15em]">
                 {showTaCode ? taCode : "\u2022".repeat(taCode.length)}
               </p>
-              <button
+              <button type="button"
                 onClick={() => setShowTaCode((v) => !v)}
                 aria-pressed={showTaCode}
                 className="mt-1 block text-paper/70 hover:text-paper underline underline-offset-4 text-sm font-semibold"
               >
                 {showTaCode ? "Hide TA code" : "Show TA code"}
               </button>
-              <button
+              <button type="button"
                 onClick={() => copy(taCode, "ta")}
                 className="mt-1 block text-paper/70 hover:text-paper underline underline-offset-4 text-sm font-semibold"
               >

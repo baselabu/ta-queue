@@ -33,7 +33,8 @@ export interface Student {
   queue: QueueType;
   status: StudentStatus;
   taId: string | null;
-  socketId: string | null;
+  /** Every live socket for this person. One tab, two tabs, a phone and a laptop. */
+  sockets: Set<string>;
   /** Only set once they are finished or removed, to drop the record a while later. */
   expiryTimer: NodeJS.Timeout | null;
 }
@@ -42,7 +43,8 @@ export interface TA {
   id: string;
   name: string;
   isHost: boolean;
-  socketId: string | null;
+  /** Every live socket for this TA. Presence is the union, never the newest one. */
+  sockets: Set<string>;
   currentStudentId: string | null;
 }
 
@@ -91,7 +93,7 @@ export class RoomManager {
     let taCode = randomCode();
     while (taCode === studentCode) taCode = randomCode();
 
-    const host: TA = { id: nanoid(), name, isHost: true, socketId: null, currentStudentId: null };
+    const host: TA = { id: nanoid(), name, isHost: true, sockets: new Set(), currentStudentId: null };
     const room: Room = {
       id: nanoid(),
       studentCode,
@@ -135,7 +137,7 @@ export class RoomManager {
       id: nanoid(),
       name: cleanName(rawName),
       isHost: false,
-      socketId: null,
+      sockets: new Set(),
       currentStudentId: null,
     };
     room.tas.set(ta.id, ta);
@@ -234,7 +236,7 @@ export class RoomManager {
       queue,
       status: "waiting",
       taId: null,
-      socketId: null,
+      sockets: new Set(),
       expiryTimer: null,
     };
     room.students.set(student.id, student);
@@ -274,12 +276,12 @@ export class RoomManager {
   // ------------------------------------------------------------- connections
 
   attachStudent(room: Room, student: Student, socketId: string): void {
-    student.socketId = socketId;
+    student.sockets.add(socketId);
     room.emptySince = null;
   }
 
   attachTA(room: Room, ta: TA, socketId: string): void {
-    ta.socketId = socketId;
+    ta.sockets.add(socketId);
     room.emptySince = null;
   }
 
@@ -287,24 +289,26 @@ export class RoomManager {
    * A student's socket dropped: they closed the tab or locked their phone, which is what
    * we tell them to do. Their place is theirs until they leave or a TA calls them.
    */
-  detachStudent(room: Room, student: Student): void {
-    student.socketId = null;
+  detachStudent(room: Room, student: Student, socketId: string): void {
+    student.sockets.delete(socketId);
     this.markEmptyIfDeserted(room);
   }
 
   /**
-   * A TA's socket dropped: another tab, a sleeping laptop, wifi. They keep their place on
-   * the board and keep the student they are with; only the presence dot changes.
+   * One of a TA's sockets dropped: a closed tab, a sleeping laptop, wifi. They keep their
+   * place and their student either way, and they only count as away once every socket of
+   * theirs has gone - a second tab closing must never make an active TA look absent.
    */
-  detachTA(room: Room, ta: TA): void {
-    ta.socketId = null;
+  detachTA(room: Room, ta: TA, socketId: string): void {
+    ta.sockets.delete(socketId);
     this.markEmptyIfDeserted(room);
   }
 
   /** A room counts as deserted only when nobody is connected AND nobody is queued. */
   private markEmptyIfDeserted(room: Room): void {
     const connected =
-      [...room.tas.values()].some((t) => t.socketId) || [...room.students.values()].some((s) => s.socketId);
+      [...room.tas.values()].some((t) => t.sockets.size > 0) ||
+      [...room.students.values()].some((s) => s.sockets.size > 0);
     room.emptySince = connected || room.students.size > 0 ? null : Date.now();
   }
 

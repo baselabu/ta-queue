@@ -156,7 +156,7 @@ describe("presence is never enforced", () => {
     const alice = rooms.joinQueue(room, "Alice", "approval");
     rooms.take(room, host, alice.id);
 
-    rooms.detachTA(room, host);
+    rooms.detachTA(room, host, "socket-1");
 
     assert.equal(room.tas.has(host.id), true, "a TA is not removed for being away");
     assert.equal(host.currentStudentId, alice.id, "their student stays with them");
@@ -170,7 +170,7 @@ describe("presence is never enforced", () => {
     const alice = rooms.joinQueue(room, "Alice", "approval");
     rooms.attachStudent(room, alice, "socket-a");
 
-    rooms.detachStudent(room, alice);
+    rooms.detachStudent(room, alice, "socket-a");
 
     assert.equal(room.students.has(alice.id), true);
     assert.equal(alice.expiryTimer, null, "no countdown is started");
@@ -178,16 +178,34 @@ describe("presence is never enforced", () => {
     assert.equal(roomState(room).approval[0]?.connected, false);
   });
 
+  test("a second tab closing does not make an active TA look away", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Sara");
+    rooms.attachTA(room, host, "laptop");
+    const alice = rooms.joinQueue(room, "Alice", "approval");
+    rooms.take(room, host, alice.id);
+
+    // A second tab in the same browser resumes the same TA, then is closed.
+    rooms.attachTA(room, host, "stray-tab");
+    rooms.detachTA(room, host, "stray-tab");
+
+    assert.equal(roomState(room).tas[0]?.connected, true, "the laptop is still open");
+    assert.equal(host.currentStudentId, alice.id, "and nobody may hand their student back");
+
+    rooms.detachTA(room, host, "laptop");
+    assert.equal(roomState(room).tas[0]?.connected, false, "away only once every tab is gone");
+  });
+
   test("reopening the page puts them back online without changing their place", () => {
     const rooms = new RoomManager();
     const { room } = rooms.createRoom("Host");
     const alice = rooms.joinQueue(room, "Alice", "approval");
     rooms.attachStudent(room, alice, "socket-a");
-    rooms.detachStudent(room, alice);
+    rooms.detachStudent(room, alice, "socket-a");
 
     rooms.attachStudent(room, alice, "socket-b");
 
-    assert.equal(alice.socketId, "socket-b");
+    assert.deepEqual([...alice.sockets], ["socket-b"]);
     assert.equal(alice.ticket, 1);
   });
 });
@@ -223,7 +241,7 @@ describe("removing a student", () => {
     const jonas = rooms.joinTA(room, room.taCode, "Jonas");
     const alice = rooms.joinQueue(room, "Alice", "approval");
     rooms.take(room, jonas, alice.id);
-    rooms.detachTA(room, jonas);
+    rooms.detachTA(room, jonas, "socket-j");
 
     rooms.requeue(room, alice.id);
 
@@ -275,8 +293,8 @@ describe("room lifecycle", () => {
     rooms.attachStudent(room, alice, "socket-a");
 
     // Everyone puts their laptop to sleep and their phone away.
-    rooms.detachTA(room, host);
-    rooms.detachStudent(room, alice);
+    rooms.detachTA(room, host, "socket-1");
+    rooms.detachStudent(room, alice, "socket-a");
 
     assert.equal(room.emptySince, null, "a queued student keeps the room alive");
     rooms.sweep(Date.now() + config.emptyRoomTtlMs + 1);

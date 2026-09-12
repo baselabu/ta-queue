@@ -35,7 +35,7 @@ export function QueuePanel({
         <ul className="divide-y divide-line max-h-[55vh] overflow-y-auto">
           {students.map((student) => (
             <li key={student.id}>
-              <button
+              <button type="button"
                 onClick={() => onTake(student.id)}
                 disabled={!canTake}
                 aria-label={`Take number ${student.ticket}, ${student.name}`}

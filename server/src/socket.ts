@@ -37,7 +37,8 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
   const broadcast = (room: Room) => {
     io.to(room.id).emit("room:state", roomState(room));
     for (const student of room.students.values()) {
-      if (student.socketId) io.to(student.socketId).emit("student:state", studentState(room, student));
+      const mine = studentState(room, student);
+      for (const socketId of student.sockets) io.to(socketId).emit("student:state", mine);
     }
   };
 
@@ -269,13 +270,13 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
       if (room.id !== session.roomId) return;
       if (session.role === "watcher") return;
 
+      // Only this socket goes; any other tab of theirs keeps them present.
       if (session.role === "student") {
         const student = session.studentId ? room.students.get(session.studentId) : undefined;
-        // Ignore stale sockets: the student may already be back on a newer connection.
-        if (student && student.socketId === socket.id) rooms.detachStudent(room, student);
+        if (student) rooms.detachStudent(room, student, socket.id);
       } else {
         const ta = session.taId ? room.tas.get(session.taId) : undefined;
-        if (ta && ta.socketId === socket.id) rooms.detachTA(room, ta);
+        if (ta) rooms.detachTA(room, ta, socket.id);
       }
       broadcast(room);
     });

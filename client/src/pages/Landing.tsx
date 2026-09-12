@@ -5,8 +5,11 @@ import { call, message, resetSocket } from "../lib/socket";
 import { lastName, taSession } from "../lib/session";
 import { Button, ErrorNote, Field, Screen } from "../components/ui";
 
+type Mode = "choose" | "create" | "join";
+
 export default function Landing() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<Mode>("choose");
   const [name, setName] = useState(lastName.get());
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,6 +33,19 @@ export default function Landing() {
 
   const digits = code.replace(/\D/g, "").slice(0, 6);
 
+  const back = (
+    <button
+      type="button"
+      onClick={() => {
+        setMode("choose");
+        setError("");
+      }}
+      className="text-sm font-semibold text-muted hover:text-ink underline underline-offset-4"
+    >
+      Back
+    </button>
+  );
+
   return (
     <Screen>
       <div className="flex-1 flex items-center justify-center px-5 py-10">
@@ -43,58 +59,76 @@ export default function Landing() {
             </p>
           </header>
 
-          {/* One ticket, torn in two: run a room above, join one below. */}
           <div className="rounded-2xl bg-paper border border-line overflow-hidden">
-            <form onSubmit={createRoom} className="p-6 sm:p-8 flex flex-col gap-4">
-              <Field
-                label="Your name"
-                name="host-name"
-                value={name}
-                autoComplete="name"
-                maxLength={32}
-                placeholder="Sara"
-                onChange={(e) => setName(e.target.value)}
-              />
-              <Button type="submit" size="lg" disabled={busy || !name.trim()}>
-                {busy ? "Creating room…" : "Create room"}
-              </Button>
-            </form>
+            {mode === "choose" && (
+              /* One ticket, torn in two: run a room above, join one below. */
+              <>
+                <Choice
+                  title="Create room"
+                  detail="Open a new queue and put the code on the screen."
+                  onClick={() => setMode("create")}
+                />
+                <Perforation />
+                <Choice
+                  title="Join room"
+                  detail="Take a number with the code your TA is showing."
+                  onClick={() => setMode("join")}
+                />
+              </>
+            )}
 
-            <div className="relative h-0 border-t-2 border-dashed border-line">
-              <span className="absolute -top-3 -left-3 block h-6 w-6 rounded-full bg-wash" />
-              <span className="absolute -top-3 -right-3 block h-6 w-6 rounded-full bg-wash" />
-            </div>
+            {mode === "create" && (
+              <form onSubmit={createRoom} className="p-6 sm:p-8 flex flex-col gap-4">
+                <Field
+                  label="Your name"
+                  name="host-name"
+                  value={name}
+                  autoFocus
+                  autoComplete="name"
+                  maxLength={32}
+                  placeholder="Sara"
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <Button type="submit" size="lg" disabled={busy || !name.trim()}>
+                  {busy ? "Creating room…" : "Create room"}
+                </Button>
+                {back}
+              </form>
+            )}
 
-            <div className="p-6 sm:p-8 flex flex-col gap-4">
-              <Field
-                label="Room code"
-                name="room-code"
-                value={digits}
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="482731"
-                className="num text-3xl tracking-[0.3em] font-bold"
-                onChange={(e) => setCode(e.target.value)}
-              />
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  disabled={digits.length !== 6}
-                  onClick={() => navigate(`/join/${digits}`)}
-                >
+            {mode === "join" && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  navigate(`/join/${digits}`);
+                }}
+                className="p-6 sm:p-8 flex flex-col gap-4"
+              >
+                <Field
+                  label="Room code"
+                  name="room-code"
+                  value={digits}
+                  autoFocus
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="482731"
+                  className="num text-3xl tracking-[0.3em] font-bold"
+                  onChange={(e) => setCode(e.target.value)}
+                />
+                <Button type="submit" size="lg" disabled={digits.length !== 6}>
                   Join the queue
                 </Button>
                 <Button
                   variant="secondary"
-                  className="flex-1"
+                  size="lg"
                   disabled={digits.length !== 6}
                   onClick={() => navigate(`/room/${digits}`)}
                 >
                   Join as a TA
                 </Button>
-              </div>
-            </div>
+                {back}
+              </form>
+            )}
           </div>
 
           {error && (
@@ -109,5 +143,23 @@ export default function Landing() {
         </div>
       </div>
     </Screen>
+  );
+}
+
+function Choice({ title, detail, onClick }: { title: string; detail: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="w-full text-left p-6 sm:p-8 transition-colors hover:bg-wash">
+      <span className="block text-3xl sm:text-4xl font-black tracking-tight">{title}</span>
+      <span className="block mt-1 text-muted">{detail}</span>
+    </button>
+  );
+}
+
+function Perforation() {
+  return (
+    <div className="relative h-0 border-t-2 border-dashed border-line">
+      <span className="absolute -top-3 -left-3 block h-6 w-6 rounded-full bg-wash" />
+      <span className="absolute -top-3 -right-3 block h-6 w-6 rounded-full bg-wash" />
+    </div>
   );
 }

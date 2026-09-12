@@ -128,7 +128,7 @@ export default function JoinStudent() {
             <div>
               <p className="text-sm font-semibold text-muted mb-3">What do you need?</p>
               <div className="grid gap-3">
-                <button
+                <button type="button"
                   disabled={busy || !name.trim()}
                   onClick={() => join("approval")}
                   className="rounded-xl bg-approval text-paper px-6 py-6 text-left transition-colors
@@ -137,7 +137,7 @@ export default function JoinStudent() {
                   <span className="block text-2xl font-bold">Assignment approval</span>
                   <span className="block text-approval-soft">A TA checks your finished work.</span>
                 </button>
-                <button
+                <button type="button"
                   disabled={busy || !name.trim()}
                   onClick={() => join("help")}
                   className="rounded-xl bg-help text-paper px-6 py-6 text-left transition-colors
