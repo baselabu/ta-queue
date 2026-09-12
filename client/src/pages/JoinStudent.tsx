@@ -121,7 +121,7 @@ export default function JoinStudent() {
               value={name}
               autoComplete="name"
               maxLength={32}
-              placeholder="Omar"
+              placeholder="Example: Omar"
               onChange={(e) => setName(e.target.value)}
             />
 

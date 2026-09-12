@@ -86,7 +86,7 @@ export default function Landing() {
                   autoFocus
                   autoComplete="name"
                   maxLength={32}
-                  placeholder="Sara"
+                  placeholder="Example: Sara"
                   onChange={(e) => setName(e.target.value)}
                 />
                 <Button type="submit" size="lg" disabled={busy || !name.trim()}>
@@ -111,8 +111,9 @@ export default function Landing() {
                   autoFocus
                   inputMode="numeric"
                   autoComplete="off"
-                  placeholder="482731"
-                  className="num text-3xl tracking-[0.3em] font-bold"
+                  placeholder="Example: 482731"
+                  className="num text-3xl tracking-[0.3em] font-bold
+                    placeholder:text-base placeholder:tracking-normal placeholder:font-medium"
                   onChange={(e) => setCode(e.target.value)}
                 />
                 <Button type="submit" size="lg" disabled={digits.length !== 6}>

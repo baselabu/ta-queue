@@ -260,7 +260,7 @@ function TAJoinForm({ code, onJoined }: { code: string; onJoined: (r: JoinTAResu
               value={name}
               autoComplete="name"
               maxLength={32}
-              placeholder="Sara"
+              placeholder="Example: Sara"
               onChange={(e) => setName(e.target.value)}
             />
             <Field
@@ -269,9 +269,10 @@ function TAJoinForm({ code, onJoined }: { code: string; onJoined: (r: JoinTAResu
               value={taCode.replace(/\D/g, "").slice(0, 6)}
               inputMode="numeric"
               autoComplete="off"
-              placeholder="915284"
+              placeholder="Example: 915284"
               hint="Ask the host for this. It is not shown to students."
-              className="num text-2xl tracking-[0.3em] font-bold"
+              className="num text-2xl tracking-[0.3em] font-bold
+                placeholder:text-base placeholder:tracking-normal placeholder:font-medium"
               onChange={(e) => setTaCode(e.target.value)}
             />
             <Button type="submit" size="lg" disabled={busy || !name.trim() || taCode.length < 6}>
