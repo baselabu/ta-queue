@@ -11,12 +11,14 @@ export function QueuePanel({
   students,
   canTake,
   onTake,
+  onRemove,
 }: {
   queue: QueueType;
   title: string;
   students: StudentView[];
   canTake: boolean;
   onTake: (studentId: string) => void;
+  onRemove: (studentId: string) => void;
 }) {
   const style = STYLES[queue];
 
@@ -34,12 +36,13 @@ export function QueuePanel({
         // pushing the TA row off the screen.
         <ul className="divide-y divide-line max-h-[55vh] overflow-y-auto">
           {students.map((student) => (
-            <li key={student.id}>
-              <button type="button"
+            <li key={student.id} className="flex items-stretch">
+              <button
+                type="button"
                 onClick={() => onTake(student.id)}
                 disabled={!canTake}
                 aria-label={`Take number ${student.ticket}, ${student.name}`}
-                className="group w-full flex items-stretch text-left transition-colors
+                className="group flex-1 min-w-0 flex items-stretch text-left transition-colors
                   enabled:hover:bg-wash disabled:cursor-default"
               >
                 <span
@@ -49,7 +52,7 @@ export function QueuePanel({
                   {student.ticket}
                 </span>
                 <span className={`stub-edge ${style.heading}`} />
-                <span className="flex-1 flex items-center justify-between gap-4 px-5">
+                <span className="flex-1 min-w-0 flex items-center justify-between gap-4 px-5">
                   <span className="text-2xl sm:text-3xl font-semibold truncate">{student.name}</span>
                   {!student.connected && (
                     <span className="text-sm font-semibold text-muted shrink-0">Offline</span>
@@ -60,6 +63,18 @@ export function QueuePanel({
                     </span>
                   )}
                 </span>
+              </button>
+
+              {/* Spam and unpleasant names have to go without being taken first. */}
+              <button
+                type="button"
+                onClick={() => onRemove(student.id)}
+                aria-label={`Remove number ${student.ticket}, ${student.name}, from the queue`}
+                title="Remove from the queue"
+                className="shrink-0 px-4 text-2xl leading-none text-muted border-l border-line
+                  hover:bg-help-soft hover:text-help transition-colors"
+              >
+                <span aria-hidden="true">&times;</span>
               </button>
             </li>
           ))}

@@ -9,7 +9,7 @@ import { JoinBanner } from "../components/JoinBanner";
 import { QueuePanel } from "../components/QueuePanel";
 import { TAPanel } from "../components/TAPanel";
 
-type Phase = "loading" | "join" | "ready" | "closed";
+type Phase = "loading" | "join" | "ready" | "closed" | "kicked";
 
 export default function Dashboard() {
   const { code = "" } = useParams();
@@ -46,11 +46,18 @@ export default function Dashboard() {
       setClosedReason(reason);
       setPhase("closed");
     };
+    const onKicked = ({ reason }: { reason: string }) => {
+      taSession.clear();
+      setClosedReason(reason);
+      setPhase("kicked");
+    };
     socket.on("room:state", onState);
     socket.on("room:closed", onClosed);
+    socket.on("ta:removed", onKicked);
     return () => {
       socket.off("room:state", onState);
       socket.off("room:closed", onClosed);
+      socket.off("ta:removed", onKicked);
     };
   }, []);
 
@@ -86,13 +93,12 @@ export default function Dashboard() {
     }
   };
 
-  /**
-   * One browser stores one TA session, so a second tab here is the same TA - right for a
-   * laptop plus a second screen, wrong when two TAs share a machine. This is the way out.
-   */
-  const switchTA = async () => {
-    taSession.clear();
-    await resetSocket(); // reconnecting with no stored session drops us at the join form
+  const kick = async (taId: string) => {
+    try {
+      await call("ta:kick", { taId });
+    } catch (err) {
+      flash(message(err));
+    }
   };
 
   const closeRoom = async () => {
@@ -111,12 +117,14 @@ export default function Dashboard() {
     );
   }
 
-  if (phase === "closed") {
+  if (phase === "closed" || phase === "kicked") {
     return (
       <Screen>
         <div className="flex-1 grid place-items-center px-5 text-center">
           <div>
-            <h1 className="text-5xl font-black tracking-tight">Room closed</h1>
+            <h1 className="text-5xl font-black tracking-tight">
+              {phase === "kicked" ? "Removed from the room" : "Room closed"}
+            </h1>
             <p className="mt-3 text-lg text-muted">{closedReason}</p>
             <Button className="mt-8" onClick={() => navigate("/")}>
               Back to start
@@ -156,19 +164,14 @@ export default function Dashboard() {
 
         <Counters approved={state?.approvedCount ?? 0} helped={state?.helpedCount ?? 0} />
 
-        <p className="text-sm text-muted">
-          Working as {me.name}.{" "}
-          <Button variant="quiet" onClick={switchTA}>
-            Switch TA
-          </Button>
-        </p>
-
         <TAPanel
           tas={state?.tas ?? []}
           myTaId={me.taId}
           onComplete={complete}
           onRemove={removeStudent}
           onRequeue={requeue}
+          isHost={me.isHost}
+          onKick={kick}
         />
 
         {!canTake && mine?.current && (
@@ -184,6 +187,7 @@ export default function Dashboard() {
             students={state?.approval ?? []}
             canTake={canTake}
             onTake={take}
+            onRemove={removeStudent}
           />
           <QueuePanel
             queue="help"
@@ -191,6 +195,7 @@ export default function Dashboard() {
             students={state?.help ?? []}
             canTake={canTake}
             onTake={take}
+            onRemove={removeStudent}
           />
         </div>
       </div>

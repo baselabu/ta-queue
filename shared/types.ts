@@ -84,6 +84,8 @@ export interface ClientToServer {
   "ta:remove": (p: { studentId: string }, ack: (r: Ack<null>) => void) => void;
   /** Hand a taken student back to their queue, keeping their ticket number. */
   "ta:requeue": (p: { studentId: string }, ack: (r: Ack<null>) => void) => void;
+  /** Host only: take another TA out of the room. */
+  "ta:kick": (p: { taId: string }, ack: (r: Ack<null>) => void) => void;
   "student:join": (p: { studentCode: string; name: string; queue: QueueType }, ack: (r: Ack<JoinStudentResult>) => void) => void;
   "student:resume": (p: { studentCode: string; studentId: string }, ack: (r: Ack<JoinStudentResult>) => void) => void;
   "student:leave": (p: Record<string, never>, ack: (r: Ack<null>) => void) => void;
@@ -93,4 +95,6 @@ export interface ServerToClient {
   "room:state": (state: RoomState) => void;
   "student:state": (state: StudentState) => void;
   "room:closed": (p: { reason: string }) => void;
+  /** Sent to one TA's own sockets when the host removes them. */
+  "ta:removed": (p: { reason: string }) => void;
 }

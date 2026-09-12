@@ -7,12 +7,16 @@ export function TAPanel({
   onComplete,
   onRemove,
   onRequeue,
+  isHost,
+  onKick,
 }: {
   tas: TAView[];
   myTaId: string;
   onComplete: () => void;
   onRemove: (studentId: string) => void;
   onRequeue: (studentId: string) => void;
+  isHost: boolean;
+  onKick: (taId: string) => void;
 }) {
   return (
     <section className="rounded-2xl bg-paper border border-line overflow-hidden">
@@ -33,6 +37,17 @@ export function TAPanel({
                 <span className="text-xl font-bold truncate">{ta.name}</span>
                 {mine && <span className="text-sm font-semibold text-muted">you</span>}
                 {!ta.connected && <span className="text-sm font-semibold text-muted">away</span>}
+                {isHost && !mine && (
+                  <button
+                    type="button"
+                    onClick={() => onKick(ta.id)}
+                    aria-label={`Remove ${ta.name} from the room`}
+                    className="ml-auto shrink-0 text-sm font-semibold text-muted hover:text-help
+                      underline underline-offset-4"
+                  >
+                    Remove TA
+                  </button>
+                )}
               </div>
 
               {ta.current ? (

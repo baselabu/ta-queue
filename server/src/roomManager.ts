@@ -151,6 +151,25 @@ export class RoomManager {
     return ta;
   }
 
+  /**
+   * Host only: take another TA out of the room. Their student did nothing wrong, so they go
+   * back to their queue keeping the ticket number that puts them at the front.
+   */
+  kickTA(room: Room, taId: unknown): TA {
+    const ta = typeof taId === "string" ? room.tas.get(taId) : undefined;
+    if (!ta) throw new RoomError("That TA is no longer in this room.");
+    if (ta.isHost) throw new RoomError("The host cannot be removed. Close the room instead.");
+
+    const student = ta.currentStudentId ? room.students.get(ta.currentStudentId) : undefined;
+    ta.currentStudentId = null;
+    if (student && student.status === "assigned") {
+      student.status = "waiting";
+      student.taId = null;
+    }
+    room.tas.delete(ta.id);
+    return ta;
+  }
+
   /** Assign a waiting student to an available TA. Rejects if either is no longer eligible. */
   take(room: Room, ta: TA, studentId: unknown): Student {
     if (ta.currentStudentId) throw new RoomError("Finish with your current student first.");

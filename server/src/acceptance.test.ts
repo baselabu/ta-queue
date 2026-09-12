@@ -24,19 +24,21 @@ interface Client {
   room: RoomState | null;
   me: StudentState | null;
   closed: string | null;
+  kicked: string | null;
   states: number;
 }
 
 function open(): Promise<Client> {
   return new Promise((resolve, reject) => {
     const socket = connect(url, { transports: ["websocket"], forceNew: true });
-    const client: Client = { socket, room: null, me: null, closed: null, states: 0 };
+    const client: Client = { socket, room: null, me: null, closed: null, kicked: null, states: 0 };
     socket.on("room:state", (state: RoomState) => {
       client.room = state;
       client.states++;
     });
     socket.on("student:state", (state: StudentState) => (client.me = state));
     socket.on("room:closed", ({ reason }: { reason: string }) => (client.closed = reason));
+    socket.on("ta:removed", ({ reason }: { reason: string }) => (client.kicked = reason));
     socket.on("connect", () => {
       clients.push(client);
       resolve(client);
@@ -397,6 +399,62 @@ describe("reconnecting", () => {
     const again = await open();
     await ok(again, "student:resume", { studentCode: created.studentCode, studentId: joined.studentId });
     await waitFor(() => again.me?.status === "removed", "the student learning their turn passed");
+  });
+
+  test("the host removes a TA, who is told and can no longer act", async () => {
+    const host = await open();
+    const created = await ok<{ studentCode: string; taCode: string }>(host, "room:create", { taName: "Sara" });
+
+    const ta2 = await open();
+    await ok(ta2, "ta:join", { studentCode: created.studentCode, taCode: created.taCode, name: "Jonas" });
+    await waitFor(() => (host.room?.tas.length ?? 0) === 2, "both TAs on the board");
+
+    const stu = await open();
+    const omar = await ok<{ studentId: string; ticket: number }>(stu, "student:join", {
+      studentCode: created.studentCode,
+      name: "Omar",
+      queue: "help",
+    });
+    await ok(ta2, "ta:take", { studentId: omar.studentId });
+    await waitFor(() => host.room?.help.length === 0, "Jonas taking Omar");
+
+    const jonasId = host.room?.tas.find((t) => t.name === "Jonas")?.id;
+    assert.ok(jonasId);
+
+    // A plain TA may not do this.
+    const refused = await send(ta2, "ta:kick", { taId: jonasId });
+    assert.equal(refused.ok, false);
+    assert.match(refused.ok ? "" : refused.error, /Only the host/);
+
+    await ok(host, "ta:kick", { taId: jonasId });
+    await waitFor(() => host.room?.tas.length === 1, "Jonas leaving the board");
+    await waitFor(() => host.room?.help.length === 1, "Omar going back to the queue");
+    assert.equal(host.room?.help[0]?.ticket, omar.ticket, "keeping his number");
+    await waitFor(() => ta2.kicked !== null, "Jonas being told");
+
+    const after = await send(ta2, "ta:take", { studentId: omar.studentId });
+    assert.equal(after.ok, false, "a removed TA can no longer act");
+  });
+
+  test("any TA can clear a spam entry straight out of the queue", async () => {
+    const host = await open();
+    const created = await ok<{ studentCode: string; taCode: string }>(host, "room:create", { taName: "Sara" });
+    const ta2 = await open();
+    await ok(ta2, "ta:join", { studentCode: created.studentCode, taCode: created.taCode, name: "Jonas" });
+
+    const spam = await open();
+    const entry = await ok<{ studentId: string }>(spam, "student:join", {
+      studentCode: created.studentCode,
+      name: "something rude",
+      queue: "approval",
+    });
+    await waitFor(() => (ta2.room?.approval.length ?? 0) === 1, "the entry showing up");
+
+    // Not the host, and without taking them first.
+    await ok(ta2, "ta:remove", { studentId: entry.studentId });
+    await waitFor(() => ta2.room?.approval.length === 0, "the entry being cleared");
+    assert.equal(ta2.room?.tas.find((t) => t.name === "Jonas")?.current, null, "nobody was held");
+    assert.deepEqual([ta2.room?.approvedCount, ta2.room?.helpedCount], [0, 0]);
   });
 
   test("students cannot remove or hand somebody back", async () => {

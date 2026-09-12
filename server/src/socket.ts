@@ -202,6 +202,22 @@ export function registerHandlers(io: TAQueueServer, rooms: RoomManager): void {
     );
 
     socket.on(
+      "ta:kick",
+      handle(socket, "ta:kick", ({ taId }: { taId: string }) => {
+        const { session, room } = requireRoom(socket);
+        if (session.role !== "host" || session.taId !== room.hostId) {
+          throw new RoomError("Only the host can remove a TA.");
+        }
+        const kicked = rooms.kickTA(room, taId);
+        for (const socketId of kicked.sockets) {
+          io.to(socketId).emit("ta:removed", { reason: "The host removed you from this room." });
+          io.in(socketId).socketsLeave(room.id);
+        }
+        return { result: null, room };
+      }),
+    );
+
+    socket.on(
       "room:close",
       handle(socket, "room:close", () => {
         const { session, room } = requireRoom(socket);

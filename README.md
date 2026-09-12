@@ -109,6 +109,7 @@ It is not part of the broadcast room state, so no student client ever receives i
 | `ta:complete`     | ok, or why not                            |
 | `ta:remove`       | ok, or why not                            |
 | `ta:requeue`      | ok, or why not                            |
+| `ta:kick`         | ok (host only)                            |
 | `room:close`      | ok (host only)                            |
 | `student:join`    | your ticket number                        |
 | `student:resume`  | the same, after a refresh                 |
@@ -119,6 +120,7 @@ It is not part of the broadcast room state, so no student client ever receives i
 | `room:state`     | everyone in the room — queues, TAs, counters    |
 | `student:state`  | one student — their number, position and TA     |
 | `room:closed`    | everyone, once, before the room is deleted      |
+| `ta:removed`     | one TA, when the host removes them              |
 
 Every call answers with `{ ok: true, data }` or `{ ok: false, error }`, where `error` is a
 sentence meant to be shown to the person. Stack traces stay on the server.
@@ -148,20 +150,23 @@ each `connect`, not just the first (`client/src/lib/useReattach.ts`). Without th
 that had been asleep looks connected while the server no longer knows who it belongs to:
 the board goes stale and every click is refused. Identity lives in `localStorage`, not
 `sessionStorage`, so it survives the tab being closed entirely — which also means one
-browser holds one TA session, and a second tab on the dashboard is the same TA. **Switch
-TA** on the dashboard clears it when two people really do share a machine.
+browser holds one TA session, so a second tab on the dashboard is the same TA. Two TAs
+sharing one machine need separate browsers or a private window.
 
 ### Clearing people out
 
 Since nothing expires on its own, TAs have the controls instead:
 
 - **Complete** — the session is done; adds to Approved or Helped.
-- **Remove** — the name was called and nobody came. The student is taken out and nothing is
-  counted. Their phone, if they open it, says their turn passed and offers a new number.
+- **Remove** — on a TA's own card after the name was called and nobody came, and as a `×` on
+  every queue row for spam or a name that should not be on a projector. Any TA can do it,
+  with or without taking the student first. Nothing is counted. Their phone, if they open it, says their turn passed and offers a new number.
   Their old ticket number is retired, never reissued.
 - **Return to queue** — appears on the card of a TA who has gone away while still holding a
   student. Any TA can put that student back in line; their original number keeps them at
   the front.
+- **Remove TA** — host only, on another TA's card. They are told and can no longer act; if
+  they were holding a student, that student goes back to the front of their queue.
 
 ## Configuration
 
@@ -228,7 +233,7 @@ Requirements for the host or reverse proxy:
 ## Tests
 
 ```bash
-npm test         # 41 tests: unit + full socket-level acceptance run
+npm test         # 46 tests: unit + full socket-level acceptance run
 npm run typecheck
 ```
 

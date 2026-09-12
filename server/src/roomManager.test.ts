@@ -225,6 +225,19 @@ describe("removing a student", () => {
     assert.deepEqual(tickets(room, "approval"), [], "and they are off the board");
   });
 
+  test("a waiting student can be removed without being taken first", () => {
+    const rooms = new RoomManager();
+    const { room } = rooms.createRoom("Sara");
+    rooms.joinQueue(room, "Alice", "approval");
+    const spam = rooms.joinQueue(room, "spam", "approval");
+
+    rooms.removeStudent(room, spam.id);
+
+    assert.equal(spam.status, "removed");
+    assert.deepEqual(tickets(room, "approval"), [1]);
+    assert.deepEqual([room.approvedCount, room.helpedCount], [0, 0]);
+  });
+
   test("a removed number is not handed out again", () => {
     const rooms = new RoomManager();
     const { room, host } = rooms.createRoom("Sara");
@@ -260,6 +273,34 @@ describe("removing a student", () => {
 
     assert.throws(() => rooms.requeue(room, alice.id), /not with a TA/);
     assert.throws(() => rooms.removeStudent(room, "nobody"), /no longer in this room/);
+  });
+});
+
+describe("removing a TA", () => {
+  test("the host takes a TA out and their student goes back to the front", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Sara");
+    const jonas = rooms.joinTA(room, room.taCode, "Jonas");
+    rooms.joinQueue(room, "Alice", "approval");
+    const bob = rooms.joinQueue(room, "Bob", "approval");
+    rooms.take(room, jonas, bob.id);
+
+    rooms.kickTA(room, jonas.id);
+
+    assert.equal(room.tas.has(jonas.id), false);
+    assert.equal(bob.status, "waiting", "the student did nothing wrong");
+    assert.equal(bob.taId, null);
+    assert.deepEqual(tickets(room, "approval"), [1, 2], "and keeps their place in line");
+    assert.equal(host.currentStudentId, null);
+  });
+
+  test("the host cannot be removed, only the room closed", () => {
+    const rooms = new RoomManager();
+    const { room, host } = rooms.createRoom("Sara");
+
+    assert.throws(() => rooms.kickTA(room, host.id), /host cannot be removed/);
+    assert.throws(() => rooms.kickTA(room, "nobody"), /no longer in this room/);
+    assert.equal(room.tas.size, 1);
   });
 });
 
